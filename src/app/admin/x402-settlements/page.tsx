@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { formatUtcTimestamp } from "@/lib/format";
 
 type SettlementStatus = "settled" | "failed" | "held";
 
@@ -19,10 +20,6 @@ interface Settlement {
 
 const STATUS_OPTIONS: SettlementStatus[] = ["settled", "failed", "held"];
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString();
-}
-
 // x402 USDC amounts arrive in atomic units (7 decimals), unlike the
 // existing payments table's already-decimal amount_usdc.
 function formatAmount(amount: string): string {
@@ -38,19 +35,27 @@ export default function AdminX402SettlementsPage() {
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [filter, setFilter] = useState<"" | SettlementStatus>("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  async function load() {
+  async function load(status: "" | SettlementStatus = filter) {
     setLoading(true);
-    const result = await apiFetch<Settlement[]>("/admin/x402-settlements");
-    if (result.ok) setSettlements(result.data);
+    setError(false);
+    const result = await apiFetch<Settlement[]>(
+      status ? `/admin/x402-settlements?status=${status}` : "/admin/x402-settlements",
+    );
+    if (result.ok && result.data) {
+      setSettlements(result.data);
+    } else {
+      setError(true);
+    }
     setLoading(false);
   }
 
   useEffect(() => {
     (async () => {
-      await load();
+      await load(filter);
     })();
-  }, []);
+  }, [filter]);
 
   const counts = {
     settled: settlements.filter((s) => s.status === "settled").length,
@@ -103,6 +108,8 @@ export default function AdminX402SettlementsPage() {
       <div className="admin-section">
         {loading ? (
           <div className="empty">Loading…</div>
+        ) : error ? (
+          <div className="empty">Could not load settlements — try again.</div>
         ) : visible.length === 0 ? (
           <div className="empty">No settlements match this filter.</div>
         ) : (
@@ -128,7 +135,7 @@ export default function AdminX402SettlementsPage() {
                       <span className={`status-pill ${s.status}`}>{s.status}</span>
                     </td>
                     <td className="mono">{s.tx_hash ? shortAddress(s.tx_hash) : "—"}</td>
-                    <td>{formatDate(s.created_at)}</td>
+                    <td>{formatUtcTimestamp(s.created_at)}</td>
                   </tr>
                 ))}
               </tbody>

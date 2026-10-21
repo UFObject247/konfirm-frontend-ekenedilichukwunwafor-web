@@ -37,6 +37,10 @@ function daysLeft(iso: string): number {
   return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
 }
 
+function formatDaysLeft(days: number): string {
+  return `${days} day${days === 1 ? "" : "s"} left`;
+}
+
 function PromoBanner({ promo }: { promo: Promo }) {
   if (!promo.active) {
     return <div className="admin-section hint">Your promotional rate has ended — standard fees now apply.</div>;
@@ -45,7 +49,7 @@ function PromoBanner({ promo }: { promo: Promo }) {
   const label = isFree ? "0% fees" : `${(promo.feeBps! / 100).toFixed(2)}% fees`;
   return (
     <div className="admin-section" style={{ borderColor: "var(--accent, #5b8def)" }}>
-      <div style={{ fontWeight: 600, marginBottom: 4 }}>{label} active{promo.expiresAt ? ` — ${daysLeft(promo.expiresAt)} days left` : ""}</div>
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>{label} active{promo.expiresAt ? ` — ${formatDaysLeft(daysLeft(promo.expiresAt))}` : ""}</div>
       {promo.volumeCapUsdc && (
         <div className="hint">
           ${Number(promo.volumeSoFarUsdc).toFixed(2)} of ${Number(promo.volumeCapUsdc).toFixed(2)} processed at this rate
@@ -63,6 +67,10 @@ export default function ReferralsPage() {
   });
   const [data, setData] = useState<ReferralsResponse | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
+  const [copyAnnouncement, setCopyAnnouncement] = useState("");
+
+  const COPY_FEEDBACK_MS = 4000;
 
   useEffect(() => {
     if (!resolved) return;
@@ -76,12 +84,21 @@ export default function ReferralsPage() {
 
   const referralUrl = data?.code ? `${window.location.origin}/signup?ref=${data.code}` : null;
 
-  function copyLink() {
+  async function copyLink() {
     if (!referralUrl) return;
-    navigator.clipboard.writeText(referralUrl).then(() => {
+    try {
+      await navigator.clipboard.writeText(referralUrl);
+      setCopyError(false);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+      setCopyAnnouncement("Referral link copied to clipboard.");
+      setTimeout(() => {
+        setCopied(false);
+        setCopyAnnouncement("");
+      }, COPY_FEEDBACK_MS);
+    } catch {
+      setCopied(false);
+      setCopyError(true);
+    }
   }
 
   return (
@@ -104,6 +121,14 @@ export default function ReferralsPage() {
                 {copied ? "Copied!" : "Copy link"}
               </button>
             </div>
+            <div role="status" aria-live="polite" aria-atomic="true" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap" }}>
+              {copyAnnouncement}
+            </div>
+            {copyError && (
+              <div className="hint" role="alert" style={{ marginTop: 8 }}>
+                Couldn&apos;t copy — select and copy the link manually.
+              </div>
+            )}
           </div>
 
           <div className="admin-section">

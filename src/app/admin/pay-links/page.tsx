@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { formatUtcDateTime } from "@/lib/format";
 
 interface PayLink {
   id: string;
@@ -18,9 +19,6 @@ interface PayLink {
   net_usdc: string;
 }
 
-function formatDate(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleString() : "—";
-}
 
 function formatAmount(link: PayLink): string {
   if (link.amount_usdc === null) return "Any amount";
@@ -30,11 +28,16 @@ function formatAmount(link: PayLink): string {
 export default function AdminPayLinksPage() {
   const [links, setLinks] = useState<PayLink[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     (async () => {
       const result = await apiFetch<PayLink[]>("/admin/links");
-      if (result.ok) setLinks(result.data);
+      if (result.ok && result.data) {
+        setLinks(result.data);
+      } else {
+        setError(true);
+      }
       setLoading(false);
     })();
   }, []);
@@ -75,6 +78,8 @@ export default function AdminPayLinksPage() {
       <div className="admin-section">
         {loading ? (
           <div className="empty">Loading…</div>
+        ) : error ? (
+          <div className="empty">Could not load pay links — try again.</div>
         ) : links.length === 0 ? (
           <div className="empty">No pay links have been created yet.</div>
         ) : (
@@ -103,7 +108,7 @@ export default function AdminPayLinksPage() {
                     <td>
                       <span className={`status-pill ${l.active ? "active" : "suspended"}`}>{l.active ? "active" : "inactive"}</span>
                     </td>
-                    <td>{formatDate(l.created_at)}</td>
+                    <td>{formatUtcDateTime(l.created_at)}</td>
                   </tr>
                 ))}
               </tbody>
